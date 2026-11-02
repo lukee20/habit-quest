@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0a1f" />
+  <meta name="description" content="Habit Quest — a gamified habit tracker for ADHD brains, synced via Google Sheets." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <title>Habit Quest</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="confetti"></canvas>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- ============ SETUP SCREEN (shown until API is configured) ============ -->
+  <div id="setupScreen" class="setup-screen hidden">
+    <div class="setup-card">
+      <div class="setup-logo">🎮</div>
+      <h1>Habit Quest</h1>
+      <p class="muted">Connect your Google Sheet backend to start leveling up.</p>
+      <label>Apps Script Web App URL
+        <input id="setupUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" />
+      </label>
+      <label>API token
+        <input id="setupToken" type="text" placeholder="the API_TOKEN from Code.gs" autocomplete="off" />
+      </label>
+      <button id="setupConnect" class="primary-btn">Connect 🚀</button>
+      <div id="setupStatus" class="setup-status"></div>
+      <p class="fineprint">No backend yet? Open <b>README.md</b> for the 5‑minute setup.</p>
+    </div>
+  </div>
+
+  <!-- ============ MAIN APP ============ -->
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <div class="brand">🎮 <span>Habit Quest</span></div>
+      <div class="stats-chips">
+        <span class="chip" title="Current streak">🔥 <b id="chipStreak">0</b></span>
+        <span class="chip" title="Coins">🪙 <b id="chipCoins">0</b></span>
+        <span class="chip" title="Level">⭐ <b id="chipLevel">1</b></span>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-left">
+        <div class="hero-greet">Hi, <span id="userName">Hero</span>! 👋</div>
+        <div class="hero-level"><span id="levelTitle">Rookie</span> · Level <span id="levelNum">1</span></div>
+        <div class="xpbar"><div class="xpfill" id="xpFill"></div></div>
+        <div class="xp-text" id="xpText">0 / 100 XP</div>
+      </div>
+      <div class="today-ring" id="todayRing">
+        <svg viewBox="0 0 100 100">
+          <circle class="ring-bg" cx="50" cy="50" r="42"></circle>
+          <circle class="ring-fg" id="ringFg" cx="50" cy="50" r="42"></circle>
+        </svg>
+        <div class="ring-label"><b id="ringDone">0</b><span>/<span id="ringTotal">0</span></span></div>
+      </div>
+    </section>
+
+    <main>
+      <!-- TODAY -->
+      <section id="tab-today" class="tab-panel">
+        <button id="coachBtn" class="coach-btn">🤖 Ask your AI coach for a pep talk</button>
+        <div id="todayBanner" class="today-banner hidden"></div>
+        <div id="todayList" class="habit-list"></div>
+        <button id="addHabitBtn" class="ghost-btn">＋ Add a habit</button>
+      </section>
+
+      <!-- REWARDS -->
+      <section id="tab-rewards" class="tab-panel hidden">
+        <div class="panel-head">
+          <h2>🎁 Rewards shop</h2>
+          <div class="coin-pill">🪙 <b id="rewardCoins">0</b></div>
+        </div>
+        <p class="muted small">Turn coins into real treats. Pick things that genuinely delight your brain.</p>
+        <div id="rewardList" class="reward-list"></div>
+        <button id="addRewardBtn" class="ghost-btn">＋ Add a reward</button>
+      </section>
+
+      <!-- STATS -->
+      <section id="tab-stats" class="tab-panel hidden">
+        <h2>📊 Your progress</h2>
+        <div class="stat-grid">
+          <div class="stat-card"><span class="stat-emoji">🔥</span><b id="statStreak">0</b><small>current streak</small></div>
+          <div class="stat-card"><span class="stat-emoji">🏅</span><b id="statBest">0</b><small>best streak</small></div>
+          <div class="stat-card"><span class="stat-emoji">✅</span><b id="statTotal">0</b><small>total done</small></div>
+          <div class="stat-card"><span class="stat-emoji">🎖️</span><b id="statBadges">0</b><small>badges</small></div>
+        </div>
+
+        <h3 class="section-title">Consistency map</h3>
+        <div id="heatmap" class="heatmap"></div>
+
+        <h3 class="section-title">Badges</h3>
+        <div id="badgeGrid" class="badge-grid"></div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="tab-settings" class="tab-panel hidden">
+        <h2>⚙️ Settings</h2>
+        <div class="settings-block">
+          <label>Your name
+            <input id="nameInput" type="text" maxlength="24" />
+          </label>
+          <button id="saveNameBtn" class="primary-btn small">Save name</button>
+        </div>
+
+        <div class="settings-block">
+          <h3>❄️ Streak freeze</h3>
+          <p class="muted small">Protect a missed day so one slip doesn't wipe your streak. You have <b id="freezeCount">0</b>.</p>
+          <button id="freezeBtn" class="ghost-btn">Freeze yesterday</button>
+        </div>
+
+        <div class="settings-block">
+          <h3>🔑 Backend</h3>
+          <p class="muted small">Connected to your Google Sheet. Re‑enter to switch accounts.</p>
+          <button id="reconfigBtn" class="ghost-btn">Change connection</button>
+        </div>
+
+        <div class="settings-block">
+          <h3>🎨 Appearance</h3>
+          <p class="muted small">Pick the vibe that helps you focus.</p>
+          <div class="theme-toggle">
+            <button id="themeDark" class="theme-opt">🌙 Dark</button>
+            <button id="themeLight" class="theme-opt">☀️ Light</button>
+          </div>
+        </div>
+
+        <div class="settings-block">
+          <h3>🤖 Gemini coach</h3>
+          <p class="muted small">Optional: add a free Gemini API key to get in‑app pep talks. Create one at <b>aistudio.google.com/app/apikey</b>. It's stored only on this device.</p>
+          <label>Gemini API key
+            <input id="geminiKeyInput" type="password" placeholder="AIza…" autocomplete="off" />
+          </label>
+          <label>Model
+            <input id="geminiModelInput" type="text" placeholder="gemini-2.0-flash" autocomplete="off" />
+          </label>
+          <button id="saveGeminiBtn" class="primary-btn small">Save coach settings</button>
+          <p class="muted small" style="margin-top:10px">No key? Your data is still in Google Sheets — you can ask Gemini directly (see README).</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button class="tab-btn active" data-tab="today">✅<span>Today</span></button>
+      <button class="tab-btn" data-tab="rewards">🎁<span>Rewards</span></button>
+      <button class="tab-btn" data-tab="stats">📊<span>Stats</span></button>
+      <button class="tab-btn" data-tab="settings">⚙️<span>More</span></button>
+    </nav>
+  </div>
+
+  <!-- ============ MODAL ============ -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <button id="modalClose" class="modal-close" aria-label="Close">✕</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
