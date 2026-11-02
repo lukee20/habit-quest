@@ -1,0 +1,3 @@
+# Habit Quest — please don't index this site.
+User-agent: *
+Disallow: /
