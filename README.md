@@ -1,5 +1,7 @@
 # 🎮 Habit Quest
 
+> **Live app:** <https://lukee20.github.io/habit-quest/> · **Repo:** <https://github.com/lukee20/habit-quest>
+
 A gamified habit tracker built for **ADHD brains** — installed on your phone and PCs, synced through **Google Sheets**, and readable by **Google Gemini** so your AI can keep you motivated.
 
 ![icon](icons/icon-192.png)
