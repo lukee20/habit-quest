@@ -1,5 +1,5 @@
 /* Habit Quest service worker — caches the app shell for offline use. */
-const CACHE = 'habit-quest-v1';
+const CACHE = 'habit-quest-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -29,16 +29,16 @@ self.addEventListener('fetch', (event) => {
   // Never intercept the cross-origin API (POST) or non-GET requests.
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
 
+  // Network-first: always get fresh files when online, fall back to cache offline.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-          return res;
-        })
-        .catch(() => cached || caches.match('./index.html'));
-      return cached || network;
-    })
+    fetch(event.request)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        return res;
+      })
+      .catch(() =>
+        caches.match(event.request).then((cached) => cached || caches.match('./index.html'))
+      )
   );
 });
