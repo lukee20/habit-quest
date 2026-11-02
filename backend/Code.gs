@@ -72,7 +72,24 @@ const SCHEMAS = {
 // HTTP entry points
 // ---------------------------------------------------------------------------
 function doGet(e) {
-  return respond({ ok: true, service: 'Habit Quest API', message: 'API is running 🎮' });
+  try {
+    var params = (e && e.parameter) || {};
+    // No action → simple health check (open the /exec URL in a browser to test).
+    if (!params.action) {
+      return respond({ ok: true, service: 'Habit Quest API', message: 'API is running 🎮' });
+    }
+    if (params.token !== API_TOKEN) {
+      return respond({ ok: false, error: 'Invalid token' });
+    }
+    var today = params.today || todayStr();
+    var payload = {};
+    if (params.payload) {
+      try { payload = JSON.parse(params.payload); } catch (err) { payload = {}; }
+    }
+    return respond(handleAction(params.action, payload, today));
+  } catch (err) {
+    return respond({ ok: false, error: String(err && err.stack ? err.stack : err) });
+  }
 }
 
 function doPost(e) {

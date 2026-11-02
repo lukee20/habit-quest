@@ -45,19 +45,66 @@ function showToast(msg) {
 }
 
 // ---------------------------------------------------------------- API
-async function api(action, payload = {}) {
-  if (!API_URL) throw new Error('Backend not configured');
-  const body = JSON.stringify({ action, token: API_TOKEN, today: localToday(), payload });
-  const res = await fetch(API_URL, { method: 'POST', body, redirect: 'follow' });
-  const text = await res.text();
+function parseApiResponse(text) {
+  if (/^\s*</.test(text)) {
+    const err = new Error('The URL returned a Google sign-in page instead of data.');
+    err.code = 'LOGIN';
+    throw err;
+  }
   let data;
   try {
     data = JSON.parse(text);
   } catch (e) {
-    throw new Error('Unexpected response from backend. Check your Web App URL.');
+    const err = new Error('Unexpected response from backend. Make sure the URL ends in /exec (not /dev).');
+    err.code = 'BAD';
+    throw err;
   }
-  if (!data.ok) throw new Error(data.error || 'Request failed');
+  if (!data.ok) {
+    const err = new Error(data.error || 'Request failed');
+    err.code = 'API';
+    throw err;
+  }
+  if (!data.habits || !data.user) {
+    const err = new Error('The backend responded but is out of date. Re-copy backend/Code.gs into Apps Script and deploy a new version.');
+    err.code = 'STALE';
+    throw err;
+  }
   return data;
+}
+
+async function postRequest(body) {
+  const res = await fetch(API_URL, { method: 'POST', body, redirect: 'follow' });
+  return parseApiResponse(await res.text());
+}
+
+async function getRequest(req) {
+  const sep = API_URL.indexOf('?') === -1 ? '?' : '&';
+  const url = API_URL + sep +
+    'action=' + encodeURIComponent(req.action) +
+    '&token=' + encodeURIComponent(req.token) +
+    '&today=' + encodeURIComponent(req.today) +
+    '&payload=' + encodeURIComponent(JSON.stringify(req.payload || {}));
+  const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+  return parseApiResponse(await res.text());
+}
+
+async function api(action, payload = {}) {
+  if (!API_URL) throw new Error('Backend not configured');
+  const req = { action, token: API_TOKEN, today: localToday(), payload };
+  try {
+    return await postRequest(JSON.stringify(req));
+  } catch (e) {
+    if (e.code) throw e; // real backend error (token, login, bad URL…) → surface it
+    // Otherwise it was a network/CORS failure of the POST → retry over GET.
+    try {
+      return await getRequest(req);
+    } catch (e2) {
+      if (e2.code) throw e2;
+      const err = new Error('Could not reach the backend (.');
+      err.code = 'NETWORK';
+      throw err;
+    }
+  }
 }
 
 function saveConfig(url, token) {
@@ -697,7 +744,19 @@ async function tryConnect() {
     $('app').classList.remove('hidden');
     showTab(currentTab);
   } catch (e) {
-    status.textContent = 'Could not connect: ' + e.message;
+    let msg = 'Could not connect: ' + e.message;
+    if (e.code === 'NETWORK') {
+      msg = 'Couldn’t reach the script. In Apps Script set “Who has access” to “Anyone” (Execute as: Me), and use the /exec Web App URL.';
+    } else if (e.code === 'LOGIN') {
+      msg = 'The URL is asking for a Google sign-in. Redeploy the Web App with “Who has access: Anyone”.';
+    } else if (e.code === 'BAD') {
+      msg = 'That URL didn’t return valid data. Copy the /exec Web App URL (not /dev) and try again.';
+    } else if (e.code === 'STALE') {
+      msg = e.message;
+    } else if (e.code === 'API') {
+      msg = 'Backend says: ' + e.message;
+    }
+    status.textContent = msg;
     status.className = 'setup-status error';
   }
 }
